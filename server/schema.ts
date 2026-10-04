@@ -32,6 +32,16 @@ export const typeDefs = parse(`
     finalized
   }
 
+  enum ScopeConfirmationStatus {
+    active
+    invalidated
+  }
+
+  enum ScopeConflictStatus {
+    open
+    resolved
+  }
+
   type Clause {
     id: ID!
     code: String!
@@ -55,6 +65,9 @@ export const typeDefs = parse(`
     score: Int!
     comment: String!
     createdAt: String!
+    superseded: Boolean!
+    sealedByVersion: String
+    supersedeReason: String
   }
 
   type Clarification {
@@ -85,6 +98,73 @@ export const typeDefs = parse(`
     reviewRound: Int!
     reviews: [ReviewerOpinion!]!
     clarifications: [Clarification!]!
+    scopeConfirmed: Boolean!
+    scopeMatches: Boolean!
+    pendingReReview: Boolean!
+  }
+
+  type ProofMaterial {
+    id: ID!
+    fingerprint: String!
+    attachmentName: String!
+    revision: Int!
+    firstSeenAt: String!
+    updatedAt: String!
+    updatedBy: String!
+    usages: [MaterialUsage!]!
+  }
+
+  type MaterialUsage {
+    responseId: String!
+    clauseId: String!
+    supplierId: String!
+    supplierName: String!
+    clauseCode: String!
+    clauseTitle: String!
+    currentFingerprint: String!
+    currentAttachmentName: String!
+  }
+
+  type ScopeConfirmation {
+    id: ID!
+    ticketId: String!
+    materialId: String!
+    materialRevision: Int!
+    responseId: String!
+    supplierId: String!
+    clauseIds: [String!]!
+    note: String!
+    confirmedBy: String!
+    confirmedAt: String!
+    status: ScopeConfirmationStatus!
+    invalidatedAt: String
+    invalidatedReason: String
+    coversResponse(responseId: ID!): Boolean!
+    coversClause(clauseId: ID!): Boolean!
+  }
+
+  type ScopeConflict {
+    id: ID!
+    materialId: String!
+    supplierId: String!
+    responseId: String!
+    ticketId: String!
+    conflictingBy: String!
+    conflictingAt: String!
+    conflictingSupplierId: String!
+    conflictingClauseIds: [String!]!
+    attemptedClauseIds: [String!]!
+    attemptedNote: String!
+    status: ScopeConflictStatus!
+    resolvedAt: String
+    resolvedBy: String
+  }
+
+  type SealedProof {
+    fingerprint: String!
+    attachmentName: String!
+    revision: Int!
+    responseIds: [String!]!
   }
 
   type ReviewVersion {
@@ -98,6 +178,7 @@ export const typeDefs = parse(`
     clauseCount: Int!
     responseCount: Int!
     contentHash: String!
+    sealedProofs: [SealedProof!]!
   }
 
   type AuditLog {
@@ -117,11 +198,36 @@ export const typeDefs = parse(`
     overdueClarifications: Int!
     reusedProofs: Int!
     activeVersion: String!
+    materialCount: Int!
+    pendingScopeConfirmations: Int!
+    pendingReReviews: Int!
+    openScopeConflicts: Int!
   }
 
   type Supplier {
     id: ID!
     name: String!
+  }
+
+  type MaterialCoverage {
+    material: ProofMaterial!
+    activeConfirmations: [ScopeConfirmation!]!
+    invalidatedConfirmations: [ScopeConfirmation!]!
+    openConflicts: [ScopeConflict!]!
+    coveredSupplierIds: [String!]!
+    coveredClauseIds: [String!]!
+    coveredSupplierNames: [String!]!
+    coveredClauseLabels: [String!]!
+    pendingResponseIds: [String!]!
+    pendingReReviewCount: Int!
+  }
+
+  type ScopeConfirmResult {
+    confirmation: ScopeConfirmation
+    conflict: ScopeConflict
+    materialRevision: Int!
+    materialChanged: Boolean!
+    reusedTicket: Boolean!
   }
 
   type WorkspaceData {
@@ -130,6 +236,10 @@ export const typeDefs = parse(`
     auditLogs: [AuditLog!]!
     dashboard: DashboardStats!
     suppliers: [Supplier!]!
+    materials: [ProofMaterial!]!
+    scopeConfirmations: [ScopeConfirmation!]!
+    scopeConflicts: [ScopeConflict!]!
+    materialCoverages: [MaterialCoverage!]!
   }
 
   input AssessmentInput {
@@ -160,6 +270,24 @@ export const typeDefs = parse(`
     role: ReviewRole!
   }
 
+  input ConfirmScopeInput {
+    ticketId: ID!
+    responseId: ID!
+    clauseIds: [ID!]!
+    note: String!
+    actor: String!
+    role: ReviewRole!
+    simulateFailure: Boolean
+  }
+
+  input UpdateProofMaterialInput {
+    materialId: ID!
+    fingerprint: String
+    attachmentName: String!
+    actor: String!
+    role: ReviewRole!
+  }
+
   type Query {
     workspace: WorkspaceData!
     dashboard: DashboardStats!
@@ -170,6 +298,9 @@ export const typeDefs = parse(`
     requestClarification(input: ClarificationInput!): Clarification!
     respondClarification(input: ClarificationResponseInput!): Clarification!
     finalizeVersion(input: FinalizeVersionInput!): ReviewVersion!
+    confirmScope(input: ConfirmScopeInput!): ScopeConfirmResult!
+    updateProofMaterial(input: UpdateProofMaterialInput!): ProofMaterial!
+    resolveScopeConflict(conflictId: ID!, actor: String!): ScopeConflict!
     resetReviewData: Boolean!
   }
 `);

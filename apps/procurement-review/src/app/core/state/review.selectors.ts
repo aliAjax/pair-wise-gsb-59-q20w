@@ -3,7 +3,11 @@ import type {
   Clause,
   ClauseTreeNode,
   ComplianceStatus,
+  MaterialCoverage,
+  ProofMaterial,
   ReviewState,
+  ScopeConfirmation,
+  ScopeConflict,
   SupplierResponse,
 } from "../models/review.models";
 
@@ -70,10 +74,67 @@ export const selectToast = createSelector(
   (state) => state.toast,
 );
 
+export const selectMaterials = createSelector(
+  selectReviewState,
+  (state) => state.materials,
+);
+
+export const selectScopeConfirmations = createSelector(
+  selectReviewState,
+  (state) => state.scopeConfirmations,
+);
+
+export const selectScopeConflicts = createSelector(
+  selectReviewState,
+  (state) => state.scopeConflicts,
+);
+
+export const selectMaterialCoverages = createSelector(
+  selectReviewState,
+  (state) => state.materialCoverages,
+);
+
+/** 以 materialId 为键的覆盖范围索引（与 materials 顺序对齐）。 */
+export const selectCoverageByMaterialId = createSelector(
+  selectMaterialCoverages,
+  (coverages) =>
+    new Map<string, MaterialCoverage>(
+      coverages.map((coverage) => [coverage.material.id, coverage]),
+    ),
+);
+
+export const selectOpenScopeConflicts = createSelector(
+  selectScopeConflicts,
+  (conflicts) => conflicts.filter((conflict) => conflict.status === "open"),
+);
+
+export const selectPendingReReviewResponses = createSelector(
+  selectClauses,
+  (clauses) =>
+    clauses.flatMap((clause) =>
+      clause.responses
+        .filter((response) => response.pendingReReview)
+        .map((response) => ({ clause, response })),
+    ),
+);
+
+export const selectUnscopedResponses = createSelector(
+  selectClauses,
+  (clauses) =>
+    clauses.flatMap((clause) =>
+      clause.responses
+        .filter((response) => !response.scopeConfirmed)
+        .map((response) => ({ clause, response })),
+    ),
+);
+
 export const hasReviewDifference = (response: SupplierResponse): boolean => {
   const decisions = new Set(
     response.reviews
-      .filter((review) => review.decision !== "clarification")
+      .filter(
+        (review) =>
+          !review.superseded && review.decision !== "clarification",
+      )
       .map((review) => review.decision),
   );
   return decisions.size > 1;
@@ -215,4 +276,38 @@ export const selectReusedProofs = createSelector(
 export const responseDecisionSummary = (
   response: SupplierResponse,
 ): ComplianceStatus[] =>
-  Array.from(new Set(response.reviews.map((review) => review.decision)));
+  Array.from(
+    new Set(
+      response.reviews
+        .filter((review) => !review.superseded)
+        .map((review) => review.decision),
+    ),
+  );
+
+/** 当前覆盖指定响应的生效核验单（同一材料、同供应商、条款在覆盖清单内）。 */
+export const activeConfirmationForResponse = (
+  confirmations: ScopeConfirmation[],
+  materials: ProofMaterial[],
+  response: SupplierResponse,
+): ScopeConfirmation | undefined => {
+  const material = materials.find(
+    (item) => item.fingerprint === response.proofFingerprint,
+  );
+  if (!material) {
+    return undefined;
+  }
+  return confirmations.find(
+    (confirmation) =>
+      confirmation.status === "active" &&
+      confirmation.materialId === material.id &&
+      confirmation.materialRevision === material.revision &&
+      confirmation.supplierId === response.supplierId &&
+      confirmation.clauseIds.includes(response.clauseId),
+  );
+};
+
+export const isPendingReReview = (response: SupplierResponse): boolean =>
+  response.pendingReReview;
+
+export const isScopeConflictOpen = (conflict: ScopeConflict): boolean =>
+  conflict.status === "open";

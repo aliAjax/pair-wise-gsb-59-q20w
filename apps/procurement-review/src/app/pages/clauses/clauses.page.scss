@@ -233,6 +233,95 @@ h4 {
   line-height: 1.5;
 }
 
+.scope-lock-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e3b46b;
+  border-radius: 6px;
+  background: #fff7e7;
+  color: #7a4f0d;
+
+  strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+
+  p {
+    margin: 0 0 8px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.scope-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+
+  &.ok {
+    color: #166534;
+  }
+
+  &.locked {
+    color: #92400e;
+  }
+}
+
+.gate-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eceff1;
+  color: #51626a;
+  font-size: 10px;
+
+  &.rereview {
+    background: #fff3da;
+    color: #8a4b02;
+  }
+}
+
+.response-tabs button.blocked {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.rereview-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #e8c98a;
+  border-radius: 6px;
+  background: #fffaf0;
+  color: #7c5a1c;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.opinion-list.superseded article {
+  opacity: 0.72;
+  background: #f6f7f8;
+}
+
+.superseded-title {
+  color: #8a6d3b;
+}
+
+.supersede-reason {
+  display: block;
+  margin-top: 6px;
+  color: #92743a;
+  font-size: 11px;
+}
+
 .error {
   color: #b42318;
 }

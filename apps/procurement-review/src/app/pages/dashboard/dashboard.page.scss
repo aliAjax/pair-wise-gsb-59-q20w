@@ -119,6 +119,21 @@
 
 .clarification-panel {
   overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.mini-chip {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e3f0f5;
+  color: #14566c;
+  font-size: 11px;
+
+  &.clause {
+    background: #eef4ee;
+    color: #355e3b;
+  }
 }
 
 .empty-state {

@@ -7,6 +7,10 @@ export const initialReviewState: ReviewState = {
   versions: [],
   auditLogs: [],
   suppliers: [],
+  materials: [],
+  scopeConfirmations: [],
+  scopeConflicts: [],
+  materialCoverages: [],
   filters: {
     keyword: "",
     category: "",
@@ -75,6 +79,9 @@ export const reviewReducer = createReducer(
     ReviewActions.requestClarification,
     ReviewActions.respondClarification,
     ReviewActions.finalizeVersion,
+    ReviewActions.confirmScope,
+    ReviewActions.updateProofMaterial,
+    ReviewActions.resolveScopeConflict,
     ReviewActions.resetReviewData,
     (state) => ({
       ...state,

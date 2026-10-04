@@ -1,6 +1,6 @@
 .version-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 
@@ -37,8 +37,30 @@
 }
 
 .versions-panel,
-.difference-panel {
+.difference-panel,
+.coverage-panel,
+.sealed-panel {
   overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.coverage-mini {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef4ee;
+  color: #355e3b;
+  font-size: 11px;
+
+  &.response {
+    margin: 2px 4px 2px 0;
+    background: #e3f0f5;
+    color: #14566c;
+  }
+}
+
+strong.warn {
+  color: #b45309;
 }
 
 .clarification-cards {
@@ -171,7 +193,6 @@
   .version-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
   .opinion-grid {
     grid-template-columns: 1fr;
   }

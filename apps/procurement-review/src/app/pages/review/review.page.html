@@ -28,6 +28,14 @@
       <strong class="danger">{{ differences().length }}</strong>
     </article>
     <article>
+      <span>材料更新待重评</span>
+      <strong class="danger">{{ pendingReReviews().length }}</strong>
+    </article>
+    <article>
+      <span>适用范围冲突</span>
+      <strong class="danger">{{ totalCoverageConflicts() }}</strong>
+    </article>
+    <article>
       <span>未完成澄清</span>
       <strong class="danger">{{ pendingClarifications().length }}</strong>
     </article>
@@ -122,6 +130,105 @@
     </aside>
   </div>
 
+  <section class="data-panel coverage-panel">
+    <div class="data-panel-header">
+      <div>
+        <h3>材料覆盖范围与待重评</h3>
+        <p>只有适用范围核验通过的响应才计入评审；材料更新后未定稿意见失效并产生待重评。</p>
+      </div>
+      <p-button label="打开核验台" text routerLink="/coverage" />
+    </div>
+    <p-table [value]="coverageSummary()" responsiveLayout="scroll">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>材料</th>
+          <th>覆盖供应商</th>
+          <th>覆盖条款</th>
+          <th>待确认</th>
+          <th>待重评</th>
+          <th>冲突来源</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-item>
+        <tr>
+          <td>
+            <span class="table-primary">{{ item.material.attachmentName }}</span>
+            <div class="table-secondary mono">
+              {{ item.material.fingerprint }} · rev {{ item.material.revision }}
+            </div>
+          </td>
+          <td>{{ item.supplierNames.length ? item.supplierNames.join("、") : "—" }}</td>
+          <td>
+            <div class="tag-row">
+              @for (label of item.clauseLabels; track label) {
+                <span class="coverage-mini">{{ label }}</span>
+              } @empty {
+                <span class="muted">—</span>
+              }
+            </div>
+          </td>
+          <td>
+            @if (item.pending) {
+              <strong class="danger">{{ item.pending }} 项</strong>
+            } @else {
+              已覆盖
+            }
+          </td>
+          <td>
+            @if (item.pendingReReview) {
+              <strong class="warn">{{ item.pendingReReview }} 项</strong>
+            } @else {
+              —
+            }
+          </td>
+          <td>
+            @if (item.conflicts) {
+              <app-scope-conflict-tag status="open" />
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </section>
+
+  @if (sealedProofRows().length) {
+    <section class="data-panel sealed-panel">
+      <div class="data-panel-header">
+        <div>
+          <h3>盖章版本留存的原材料</h3>
+          <p>
+            定稿版本 {{ sealedProofRows()[0].version }}
+            {{ sealedProofRows()[0].versionLabel }} 锁定时的材料快照；后续附件或指纹更新不影响盖章版本。
+          </p>
+        </div>
+      </div>
+      <p-table [value]="sealedProofRows()" responsiveLayout="scroll" [paginator]="true" [rows]="6">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>盖章附件</th>
+            <th>指纹</th>
+            <th>版本</th>
+            <th>覆盖响应</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-proof>
+          <tr>
+            <td>{{ proof.attachmentName }}</td>
+            <td class="mono">{{ proof.fingerprint }}</td>
+            <td>revision {{ proof.revision }}</td>
+            <td>
+              @for (responseId of proof.responseIds; track responseId) {
+                <span class="coverage-mini response">{{ responseId }}</span>
+              }
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </section>
+  }
+
   <section class="data-panel difference-panel">
     <div class="data-panel-header">
       <div>
@@ -154,22 +261,37 @@
             <div class="table-secondary">{{ item.response.id }}</div>
           </td>
           <td>
-            <div class="opinion-grid">
-              @for (review of item.response.reviews; track review.id) {
-                <div>
-                  <strong>{{ review.reviewer }}</strong>
-                  <app-status-tag [status]="review.decision" />
-                  <span>{{ review.score }} 分</span>
-                  <p>{{ review.comment }}</p>
-                </div>
-              }
-            </div>
+            @if (responseHasActiveReviews(item.response)) {
+              <div class="opinion-grid">
+                @for (review of activeReviews(item.response); track review.id) {
+                  <div>
+                    <strong>{{ review.reviewer }}</strong>
+                    <app-status-tag [status]="review.decision" />
+                    <span>{{ review.score }} 分</span>
+                    <p>{{ review.comment }}</p>
+                  </div>
+                }
+              </div>
+            } @else {
+              <span class="muted">原意见随材料更新失效，待重评</span>
+            }
           </td>
           <td>
-            {{ item.response.reviews[0]?.score ?? 0 }} -
-            {{ item.response.reviews[item.response.reviews.length - 1]?.score ?? 0 }}
+            @if (responseHasActiveReviews(item.response)) {
+              {{ activeReviews(item.response)[0]?.score ?? 0 }} -
+              {{ activeReviews(item.response)[activeReviews(item.response).length - 1]?.score ?? 0 }}
+            } @else {
+              —
+            }
           </td>
-          <td>{{ item.response.attachmentName }}</td>
+          <td>
+            {{ item.response.attachmentName }}
+            @if (item.response.pendingReReview) {
+              <div class="table-secondary">
+                <i class="pi pi-history"></i> 材料更新待重评
+              </div>
+            }
+          </td>
         </tr>
       </ng-template>
     </p-table>

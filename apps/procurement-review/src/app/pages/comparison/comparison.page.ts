@@ -14,6 +14,7 @@ import {
   clauseTypeLabels,
   type Clause,
   type ClauseType,
+  type ScopeConflict,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import { ReviewActions } from "../../core/state/review.actions";
@@ -22,6 +23,7 @@ import {
   selectClauses,
   selectFilteredClauses,
   selectFilters,
+  selectOpenScopeConflicts,
   selectSelectedSupplierIds,
   selectSuppliers,
 } from "../../core/state/review.selectors";
@@ -114,6 +116,35 @@ export class ComparisonPage {
       Array.from(this.proofCounts().values()).filter((count) => count > 1)
         .length,
   );
+  readonly openConflicts = toSignal(
+    this.store.select(selectOpenScopeConflicts),
+    { initialValue: [] as ScopeConflict[] },
+  );
+  readonly pendingReReviewCount = computed(
+    () =>
+      this.clauses()
+        .flatMap((clause) => clause.responses)
+        .filter((response) => response.pendingReReview).length,
+  );
+  readonly unscopedCount = computed(
+    () =>
+      this.clauses()
+        .flatMap((clause) => clause.responses)
+        .filter((response) => !response.scopeConfirmed).length,
+  );
+
+  conflictForResponse(response: SupplierResponse | undefined): ScopeConflict | undefined {
+    if (!response) {
+      return undefined;
+    }
+    return this.openConflicts().find(
+      (conflict) => conflict.responseId === response.id,
+    );
+  }
+
+  activeOpinionCount(response: SupplierResponse): number {
+    return response.reviews.filter((review) => !review.superseded).length;
+  }
 
   updateFilter(partial: {
     keyword?: string;
@@ -154,5 +185,19 @@ export class ComparisonPage {
 
   hasReusedProof(clause: Clause): boolean {
     return clause.responses.some((response) => this.isReusedProof(response));
+  }
+
+  hasUnscoped(clause: Clause): boolean {
+    return clause.responses.some((response) => !response.scopeConfirmed);
+  }
+
+  hasPendingReReview(clause: Clause): boolean {
+    return clause.responses.some((response) => response.pendingReReview);
+  }
+
+  hasConflict(clause: Clause): boolean {
+    return clause.responses.some((response) =>
+      Boolean(this.conflictForResponse(response)),
+    );
   }
 }

@@ -88,10 +88,21 @@
             <button
               type="button"
               [class.active]="selectedResponse()?.id === response.id"
+              [class.blocked]="!response.scopeConfirmed"
               (click)="selectResponse(response)"
             >
               <span>{{ response.supplierName }}</span>
               <app-status-tag [status]="response.status" />
+              @if (!response.scopeConfirmed) {
+                <small class="gate-mini">
+                  <i class="pi pi-lock"></i> 待核验
+                </small>
+              }
+              @if (response.pendingReReview) {
+                <small class="gate-mini rereview">
+                  <i class="pi pi-history"></i> 待重评
+                </small>
+              }
             </button>
           }
         </section>
@@ -125,15 +136,36 @@
                     <dd class="mono">{{ response.proofFingerprint }}</dd>
                   </div>
                   <div>
+                    <dt>适用范围核验</dt>
+                    <dd>
+                      @if (response.scopeConfirmed) {
+                        <span class="scope-state ok">
+                          <i class="pi pi-verified"></i> 已确认，可评审
+                        </span>
+                      } @else {
+                        <span class="scope-state locked">
+                          <i class="pi pi-lock"></i> 未确认，评审已锁定
+                        </span>
+                      }
+                    </dd>
+                  </div>
+                  <div>
                     <dt>评审轮次</dt>
                     <dd>第 {{ response.reviewRound }} 轮</dd>
                   </div>
                 </dl>
 
+                @if (response.pendingReReview) {
+                  <div class="rereview-banner">
+                    <i class="pi pi-history"></i>
+                    附件或指纹更新后，未定稿评审意见已失效；盖章版本保留原材料，本响应需重新评审。
+                  </div>
+                }
+
                 <h4>独立评审意见</h4>
-                @if (response.reviews.length) {
+                @if (activeOpinions(response).length) {
                   <div class="opinion-list">
-                    @for (review of response.reviews; track review.id) {
+                    @for (review of activeOpinions(response); track review.id) {
                       <article>
                         <header>
                           <strong>{{ review.reviewer }}</strong>
@@ -148,7 +180,31 @@
                     }
                   </div>
                 } @else {
-                  <p class="muted">尚无独立评审意见。</p>
+                  <p class="muted">
+                    {{ response.scopeConfirmed ? "尚无独立评审意见。" : "适用范围核验通过后才能提交评审意见。" }}
+                  </p>
+                }
+
+                @if (supersededOpinions(response).length) {
+                  <h4 class="superseded-title">已失效的未定稿意见</h4>
+                  <div class="opinion-list superseded">
+                    @for (review of supersededOpinions(response); track review.id) {
+                      <article>
+                        <header>
+                          <strong>{{ review.reviewer }}</strong>
+                          <app-status-tag [status]="review.decision" />
+                          @if (clause.type === "scoring") {
+                            <span>{{ review.score }} 分</span>
+                          }
+                          <time>{{ review.createdAt | date: "MM-dd HH:mm" }}</time>
+                        </header>
+                        <p>{{ review.comment }}</p>
+                        <small class="supersede-reason">
+                          {{ review.supersedeReason ?? "材料更新后该意见已失效。" }}
+                        </small>
+                      </article>
+                    }
+                  </div>
                 }
 
                 <h4>澄清记录</h4>
@@ -196,6 +252,20 @@
                 [formGroup]="assessmentForm"
                 (ngSubmit)="submitAssessment()"
               >
+                @if (selectedResponseBlocked()) {
+                  <div class="scope-lock-note">
+                    <i class="pi pi-lock"></i>
+                    <div>
+                      <strong>证明材料适用范围尚未确认</strong>
+                      <p>请采购人员先在核验台确认材料覆盖的供应商和条款，确认后本响应才进入评审。</p>
+                      <p-button
+                        label="前往材料核验台"
+                        size="small"
+                        routerLink="/coverage"
+                      />
+                    </div>
+                  </div>
+                }
                 @if (!canReview()) {
                   <div class="permission-note">
                     采购人员可维护条款和发起澄清，不能代替评审员提交符合性结论。
@@ -250,7 +320,7 @@
                   type="submit"
                   label="提交独立意见"
                   icon="pi pi-check"
-                  [disabled]="!canReview()"
+                  [disabled]="!canReview() || selectedResponseBlocked()"
                   [loading]="false"
                   styleClass="full-button"
                 />

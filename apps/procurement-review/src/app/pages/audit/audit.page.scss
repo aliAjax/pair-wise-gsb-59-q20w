@@ -1,6 +1,6 @@
 .audit-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 
@@ -63,6 +63,18 @@
 
 .audit-table-panel {
   overflow: hidden;
+}
+
+.export-panel {
+  margin-bottom: 16px;
+}
+
+strong.warn {
+  color: #b45309;
+}
+
+strong.danger {
+  color: #b42318;
 }
 
 @media (max-width: 850px) {

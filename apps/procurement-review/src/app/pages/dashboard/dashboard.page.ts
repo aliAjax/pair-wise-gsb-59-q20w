@@ -10,6 +10,7 @@ import { TagModule } from "primeng/tag";
 import {
   type Clause,
   type Clarification,
+  type ScopeConflict,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import {
@@ -19,12 +20,17 @@ import {
   selectDashboard,
   selectError,
   selectLoading,
+  selectMaterials,
+  selectOpenScopeConflicts,
   selectPendingClarifications,
+  selectPendingReReviewResponses,
   selectRole,
+  selectScopeConfirmations,
   selectVersions,
 } from "../../core/state/review.selectors";
 import {
   ClarificationTagComponent,
+  ScopeConflictTagComponent,
   StatusTagComponent,
 } from "../../shared/status-tag.component";
 
@@ -45,6 +51,7 @@ interface PendingIssue {
     TagModule,
     StatusTagComponent,
     ClarificationTagComponent,
+    ScopeConflictTagComponent,
   ],
   templateUrl: "./dashboard.page.html",
   styleUrl: "./dashboard.page.scss",
@@ -78,6 +85,79 @@ export class DashboardPage {
     this.store.select(selectPendingClarifications),
     { initialValue: [] as PendingIssue[] },
   );
+  readonly materials = toSignal(this.store.select(selectMaterials), {
+    initialValue: [],
+  });
+  readonly confirmations = toSignal(
+    this.store.select(selectScopeConfirmations),
+    { initialValue: [] },
+  );
+  readonly openConflicts = toSignal(
+    this.store.select(selectOpenScopeConflicts),
+    { initialValue: [] as ScopeConflict[] },
+  );
+  readonly pendingReReviews = toSignal(
+    this.store.select(selectPendingReReviewResponses),
+    { initialValue: [] },
+  );
+  /** 材料覆盖范围：指纹 → 已确认供应商 / 条款。 */
+  readonly materialScopes = computed(() => {
+    const materials = this.materials();
+    return materials.map((material) => {
+      const active = this.confirmations().filter(
+        (item) =>
+          item.materialId === material.id && item.status === "active",
+      );
+      const usages = this.clauses().flatMap((clause) =>
+        clause.responses
+          .filter(
+            (response) => response.proofFingerprint === material.fingerprint,
+          )
+          .map((response) => ({ clause, response })),
+      );
+      const supplierNames = Array.from(
+        new Set(
+          active.map((item) =>
+            usages.find(
+              ({ response }) => response.supplierId === item.supplierId,
+            )?.response.supplierName,
+          ),
+        ),
+      ).filter((name): name is string => Boolean(name));
+      const clauseLabels = Array.from(
+        new Set(
+          active.flatMap((item) =>
+            item.clauseIds
+              .map((clauseId) => {
+                const clause = this.clauses().find(
+                  (entry) => entry.id === clauseId,
+                );
+                return clause ? `${clause.code} ${clause.title}` : "";
+              })
+              .filter(Boolean),
+          ),
+        ),
+      );
+      const pendingCount = usages.filter(
+        ({ response }) =>
+          !active.some(
+            (item) =>
+              item.supplierId === response.supplierId &&
+              item.clauseIds.includes(response.clauseId),
+          ),
+      ).length;
+      return {
+        material,
+        usages,
+        supplierNames,
+        clauseLabels,
+        pendingCount,
+        conflictCount: this.openConflicts().filter(
+          (conflict) => conflict.materialId === material.id,
+        ).length,
+      };
+    });
+  });
   readonly differences = computed(() =>
     this.clauses().flatMap((clause) =>
       clause.responses

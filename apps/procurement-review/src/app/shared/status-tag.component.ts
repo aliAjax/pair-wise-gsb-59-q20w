@@ -4,6 +4,8 @@ import type {
   ClauseType,
   ClarificationStatus,
   ComplianceStatus,
+  ScopeConfirmationStatus,
+  ScopeConflictStatus,
   VersionStatus,
 } from "../core/models/review.models";
 
@@ -120,5 +122,57 @@ export class VersionTagComponent {
 
   severity(): Severity {
     return versionConfig[this.status()].severity;
+  }
+}
+
+const scopeConfirmationConfig: Record<
+  ScopeConfirmationStatus,
+  { label: string; severity: Severity }
+> = {
+  active: { label: "核验通过", severity: "success" },
+  invalidated: { label: "已失效待重核", severity: "danger" },
+};
+
+@Component({
+  selector: "app-scope-confirmation-tag",
+  imports: [TagModule],
+  template: `<p-tag [value]="label()" [severity]="severity()" />`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ScopeConfirmationTagComponent {
+  readonly status = input<ScopeConfirmationStatus>("active");
+
+  label(): string {
+    return scopeConfirmationConfig[this.status()].label;
+  }
+
+  severity(): Severity {
+    return scopeConfirmationConfig[this.status()].severity;
+  }
+}
+
+const scopeConflictConfig: Record<
+  ScopeConflictStatus,
+  { label: string; severity: Severity }
+> = {
+  open: { label: "冲突待处理", severity: "warn" },
+  resolved: { label: "冲突已处理", severity: "success" },
+};
+
+@Component({
+  selector: "app-scope-conflict-tag",
+  imports: [TagModule],
+  template: `<p-tag [value]="label()" [severity]="severity()" />`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ScopeConflictTagComponent {
+  readonly status = input<ScopeConflictStatus>("open");
+
+  label(): string {
+    return scopeConflictConfig[this.status()].label;
+  }
+
+  severity(): Severity {
+    return scopeConflictConfig[this.status()].severity;
   }
 }

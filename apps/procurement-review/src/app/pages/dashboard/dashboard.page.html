@@ -50,6 +50,16 @@
         <small>需人工确认适用范围</small>
       </article>
       <article class="metric">
+        <span>待重评响应</span>
+        <strong class="danger">{{ stats.pendingReReviews }}</strong>
+        <small>材料更新后未定稿意见失效</small>
+      </article>
+      <article class="metric">
+        <span>适用范围冲突</span>
+        <strong class="danger">{{ stats.openScopeConflicts }}</strong>
+        <small>并发确认需核对来源</small>
+      </article>
+      <article class="metric">
         <span>当前工作版本</span>
         <strong class="version">{{ stats.activeVersion }}</strong>
         <small>定稿后锁定快照</small>
@@ -192,6 +202,147 @@
         </ol>
       </section>
     </div>
+
+    <section class="data-panel clarification-panel">
+      <div class="data-panel-header">
+        <div>
+          <h3>证明材料覆盖范围</h3>
+          <p>同一指纹汇成材料记录，覆盖供应商与条款必须经核验单确认后才进入评审</p>
+        </div>
+        <div class="inline-actions">
+          @if (stats.openScopeConflicts) {
+            <app-scope-conflict-tag status="open" />
+          }
+          <p-button label="进入核验台" text routerLink="/coverage" />
+        </div>
+      </div>
+      <p-table
+        [value]="materialScopes()"
+        [paginator]="true"
+        [rows]="5"
+        responsiveLayout="scroll"
+        styleClass="compact-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>材料 / 指纹</th>
+            <th>覆盖供应商</th>
+            <th>覆盖条款</th>
+            <th>待确认</th>
+            <th>冲突来源</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-scope>
+          <tr>
+            <td>
+              <span class="table-primary">{{ scope.material.attachmentName }}</span>
+              <div class="table-secondary mono">
+                {{ scope.material.fingerprint }} · rev {{ scope.material.revision }}
+              </div>
+            </td>
+            <td>
+              @if (scope.supplierNames.length) {
+                <div class="tag-row">
+                  @for (name of scope.supplierNames; track name) {
+                    <span class="mini-chip">{{ name }}</span>
+                  }
+                </div>
+              } @else {
+                <span class="muted">未确认</span>
+              }
+            </td>
+            <td>
+              @if (scope.clauseLabels.length) {
+                <div class="tag-row">
+                  @for (label of scope.clauseLabels; track label) {
+                    <span class="mini-chip clause">{{ label }}</span>
+                  }
+                </div>
+              } @else {
+                <span class="muted">未确认</span>
+              }
+            </td>
+            <td>
+              @if (scope.pendingCount) {
+                <strong class="danger">{{ scope.pendingCount }} 项</strong>
+              } @else {
+                <span>已覆盖</span>
+              }
+            </td>
+            <td>
+              @if (scope.conflictCount) {
+                <app-scope-conflict-tag status="open" />
+              } @else {
+                <span class="muted">—</span>
+              }
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5">尚未生成证明材料记录。</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </section>
+
+    <section class="data-panel clarification-panel">
+      <div class="data-panel-header">
+        <div>
+          <h3>待重评队列</h3>
+          <p>附件或指纹更新后，未定稿意见失效；盖章版本中的原材料与意见继续保留。</p>
+        </div>
+        <p-tag
+          [value]="pendingReReviews().length + ' 项'"
+          [severity]="pendingReReviews().length ? 'warn' : 'success'"
+        />
+      </div>
+      <p-table
+        [value]="pendingReReviews()"
+        [paginator]="true"
+        [rows]="5"
+        responsiveLayout="scroll"
+        styleClass="compact-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>条款</th>
+            <th>供应商</th>
+            <th>新材料</th>
+            <th>处理</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-item>
+          <tr>
+            <td>
+              <span class="mono">{{ item.clause.code }}</span>
+              <div class="table-secondary">{{ item.clause.title }}</div>
+            </td>
+            <td>{{ item.response.supplierName }}</td>
+            <td>
+              {{ item.response.attachmentName }}
+              <div class="table-secondary mono">
+                {{ item.response.proofFingerprint }}
+              </div>
+            </td>
+            <td>
+              <p-button
+                label="前往核验台"
+                size="small"
+                severity="warn"
+                [outlined]="true"
+                routerLink="/coverage"
+              />
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="4">没有因材料更新而待重评的响应。</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </section>
 
     <section class="data-panel clarification-panel">
       <div class="data-panel-header">

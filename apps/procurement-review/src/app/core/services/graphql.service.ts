@@ -6,9 +6,14 @@ import type {
   Clarification,
   ClarificationInput,
   ClarificationResponseInput,
+  ConfirmScopeInput,
   FinalizeVersionInput,
+  ProofMaterial,
   ReviewVersion,
   ReviewerOpinion,
+  ScopeConfirmResult,
+  ScopeConflict,
+  UpdateProofMaterialInput,
   WorkspaceQueryResult,
 } from "../models/review.models";
 
@@ -39,6 +44,9 @@ const WORKSPACE_QUERY = gql`
           submittedBy
           submittedAt
           reviewRound
+          scopeConfirmed
+          scopeMatches
+          pendingReReview
           reviews {
             id
             responseId
@@ -48,6 +56,9 @@ const WORKSPACE_QUERY = gql`
             score
             comment
             createdAt
+            superseded
+            sealedByVersion
+            supersedeReason
           }
           clarifications {
             id
@@ -74,6 +85,12 @@ const WORKSPACE_QUERY = gql`
         clauseCount
         responseCount
         contentHash
+        sealedProofs {
+          fingerprint
+          attachmentName
+          revision
+          responseIds
+        }
       }
       auditLogs {
         id
@@ -91,10 +108,72 @@ const WORKSPACE_QUERY = gql`
         overdueClarifications
         reusedProofs
         activeVersion
+        materialCount
+        pendingScopeConfirmations
+        pendingReReviews
+        openScopeConflicts
       }
       suppliers {
         id
         name
+      }
+      materials {
+        id
+        fingerprint
+        attachmentName
+        revision
+        firstSeenAt
+        updatedAt
+        updatedBy
+        usages {
+          responseId
+          clauseId
+          supplierId
+          supplierName
+          clauseCode
+          clauseTitle
+          currentFingerprint
+          currentAttachmentName
+        }
+      }
+      scopeConfirmations {
+        id
+        ticketId
+        materialId
+        materialRevision
+        responseId
+        supplierId
+        clauseIds
+        note
+        confirmedBy
+        confirmedAt
+        status
+        invalidatedAt
+        invalidatedReason
+      }
+      scopeConflicts {
+        id
+        materialId
+        supplierId
+        responseId
+        ticketId
+        conflictingBy
+        conflictingAt
+        conflictingSupplierId
+        conflictingClauseIds
+        attemptedClauseIds
+        attemptedNote
+        status
+        resolvedAt
+        resolvedBy
+      }
+      materialCoverages {
+        coveredSupplierIds
+        coveredClauseIds
+        coveredSupplierNames
+        coveredClauseLabels
+        pendingResponseIds
+        pendingReReviewCount
       }
     }
   }
@@ -111,6 +190,8 @@ const SUBMIT_ASSESSMENT = gql`
       score
       comment
       createdAt
+      superseded
+      sealedByVersion
     }
   }
 `;
@@ -162,6 +243,78 @@ const FINALIZE_VERSION = gql`
       clauseCount
       responseCount
       contentHash
+      sealedProofs {
+        fingerprint
+        attachmentName
+        revision
+        responseIds
+      }
+    }
+  }
+`;
+
+const CONFIRM_SCOPE = gql`
+  mutation ConfirmScope($input: ConfirmScopeInput!) {
+    confirmScope(input: $input) {
+      confirmation {
+        id
+        ticketId
+        materialId
+        materialRevision
+        responseId
+        supplierId
+        clauseIds
+        note
+        confirmedBy
+        confirmedAt
+        status
+        invalidatedAt
+        invalidatedReason
+      }
+      conflict {
+        id
+        materialId
+        supplierId
+        responseId
+        ticketId
+        conflictingBy
+        conflictingAt
+        conflictingSupplierId
+        conflictingClauseIds
+        attemptedClauseIds
+        attemptedNote
+        status
+        resolvedAt
+        resolvedBy
+      }
+      materialRevision
+      materialChanged
+      reusedTicket
+    }
+  }
+`;
+
+const UPDATE_PROOF_MATERIAL = gql`
+  mutation UpdateProofMaterial($input: UpdateProofMaterialInput!) {
+    updateProofMaterial(input: $input) {
+      id
+      fingerprint
+      attachmentName
+      revision
+      firstSeenAt
+      updatedAt
+      updatedBy
+    }
+  }
+`;
+
+const RESOLVE_SCOPE_CONFLICT = gql`
+  mutation ResolveScopeConflict($conflictId: ID!, $actor: String!) {
+    resolveScopeConflict(conflictId: $conflictId, actor: $actor) {
+      id
+      status
+      resolvedAt
+      resolvedBy
     }
   }
 `;
@@ -258,6 +411,62 @@ export class ReviewGraphqlService {
             throw new Error("GraphQL 未返回版本信息。");
           }
           return result.data.finalizeVersion;
+        }),
+      );
+  }
+
+  confirmScope(input: ConfirmScopeInput): Observable<ScopeConfirmResult> {
+    return this.apollo
+      .mutate<{ confirmScope: ScopeConfirmResult }>({
+        mutation: CONFIRM_SCOPE,
+        variables: { input },
+        refetchQueries: ["ProcurementReviewWorkspace"],
+      })
+      .pipe(
+        map((result) => {
+          if (!result.data) {
+            throw new Error("GraphQL 未返回核验结果。");
+          }
+          return result.data.confirmScope;
+        }),
+      );
+  }
+
+  updateProofMaterial(
+    input: UpdateProofMaterialInput,
+  ): Observable<ProofMaterial> {
+    return this.apollo
+      .mutate<{ updateProofMaterial: ProofMaterial }>({
+        mutation: UPDATE_PROOF_MATERIAL,
+        variables: { input },
+        refetchQueries: ["ProcurementReviewWorkspace"],
+      })
+      .pipe(
+        map((result) => {
+          if (!result.data) {
+            throw new Error("GraphQL 未返回更新后的材料。");
+          }
+          return result.data.updateProofMaterial;
+        }),
+      );
+  }
+
+  resolveScopeConflict(
+    conflictId: string,
+    actor: string,
+  ): Observable<ScopeConflict> {
+    return this.apollo
+      .mutate<{ resolveScopeConflict: ScopeConflict }>({
+        mutation: RESOLVE_SCOPE_CONFLICT,
+        variables: { conflictId, actor },
+        refetchQueries: ["ProcurementReviewWorkspace"],
+      })
+      .pipe(
+        map((result) => {
+          if (!result.data) {
+            throw new Error("GraphQL 未返回冲突处理结果。");
+          }
+          return result.data.resolveScopeConflict;
         }),
       );
   }

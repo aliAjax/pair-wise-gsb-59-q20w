@@ -32,6 +32,7 @@ import {
   roleProfiles,
   type Clause,
   type ComplianceStatus,
+  type ReviewerOpinion,
   type SupplierResponse,
 } from "../../core/models/review.models";
 import { ReviewActions } from "../../core/state/review.actions";
@@ -105,6 +106,17 @@ export class ClausesPage {
     );
   });
   readonly canReview = computed(() => this.role() !== "procurement");
+  readonly selectedResponseBlocked = computed(
+    () => this.selectedResponse()?.scopeConfirmed === false,
+  );
+
+  activeOpinions(response: SupplierResponse): ReviewerOpinion[] {
+    return response.reviews.filter((review) => !review.superseded);
+  }
+
+  supersededOpinions(response: SupplierResponse): ReviewerOpinion[] {
+    return response.reviews.filter((review) => review.superseded);
+  }
   readonly clauseRisks = computed(() => {
     const clause = this.selectedClause();
     if (!clause) {
@@ -142,6 +154,12 @@ export class ClausesPage {
     });
     if (duplicatedProof.size > 0) {
       risks.push("同一证明文件在多个响应中重复使用，需要确认适用范围");
+    }
+    if (clause.responses.some((response) => !response.scopeConfirmed)) {
+      risks.push("存在尚未确认适用范围的响应，核验通过前不得进入评审");
+    }
+    if (clause.responses.some((response) => response.pendingReReview)) {
+      risks.push("证明材料已更新，未定稿意见失效，需要按新材料重评");
     }
     return risks;
   });

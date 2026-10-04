@@ -1,0 +1,416 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <h2>证明材料适用范围核验台</h2>
+      <p>
+        同一指纹首次出现自动汇成材料记录；供应商响应必须确认材料覆盖的供应商与条款，才能进入评审。
+        附件或指纹更新后未定稿核验单与意见失效，盖章版本继续保留原材料。
+      </p>
+    </div>
+  </header>
+
+  @if (dashboard(); as stats) {
+    <div class="coverage-summary">
+      <article>
+        <span>材料记录</span>
+        <strong>{{ stats.materialCount }}</strong>
+        <small>按指纹首次出现汇成</small>
+      </article>
+      <article>
+        <span>待确认响应</span>
+        <strong class="warn">{{ stats.pendingScopeConfirmations }}</strong>
+        <small>未确认不得进入评审</small>
+      </article>
+      <article>
+        <span>待重评</span>
+        <strong class="danger">{{ stats.pendingReReviews }}</strong>
+        <small>材料更新后未定稿意见失效</small>
+      </article>
+      <article>
+        <span>冲突来源</span>
+        <strong class="danger">{{ stats.openScopeConflicts }}</strong>
+        <small>并发确认同一材料的差异</small>
+      </article>
+    </div>
+  }
+
+  <section class="data-panel coverage-filter-panel">
+    <div class="data-panel-body coverage-filters">
+      <div class="filter-chips">
+        @for (option of filterOptions; track option.value) {
+          <button
+            type="button"
+            class="filter-chip"
+            [class.active]="filter() === option.value"
+            (click)="setFilter(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+      <div class="field keyword-field">
+        <label for="coverage-keyword">检索材料</label>
+        <input
+          id="coverage-keyword"
+          pInputText
+          [ngModel]="keyword()"
+          (ngModelChange)="keyword.set($event)"
+          placeholder="指纹、附件、供应商或条款"
+        />
+      </div>
+    </div>
+  </section>
+
+  @if (openConflicts().length) {
+    <section class="data-panel conflict-banner">
+      <div class="data-panel-header">
+        <div>
+          <h3>待处理冲突来源</h3>
+          <p>两个人同时确认同一材料时，后到一方保留填写内容，并看到材料已被确认的范围。</p>
+        </div>
+        <app-scope-conflict-tag status="open" />
+      </div>
+      <div class="data-panel-body conflict-list">
+        @for (conflict of openConflicts(); track conflict.id) {
+          <article class="conflict-card">
+            <header>
+              <span class="mono">{{ conflict.id }}</span>
+              <small>核验单 {{ conflict.ticketId }}</small>
+            </header>
+            <div class="conflict-grid">
+              <div>
+                <span>冲突来源（先到）</span>
+                <strong>{{ conflict.conflictingBy }}</strong>
+                <p>已覆盖条款：{{ conflictingClauseLabel(conflict) }}</p>
+              </div>
+              <div>
+                <span>后到一方</span>
+                <strong>{{ supplierName(conflict.supplierId) }}</strong>
+                <p>{{ conflict.attemptedNote }}</p>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <p-button
+                label="标记冲突已处理"
+                icon="pi pi-check-circle"
+                size="small"
+                [disabled]="!canMaintain()"
+                (onClick)="resolveConflict(conflict)"
+              />
+              @for (row of rowsForConflict(conflict); track trackRow($index, row)) {
+                <p-button
+                  label="沿原核验单重试"
+                  icon="pi pi-refresh"
+                  size="small"
+                  severity="secondary"
+                  [outlined]="true"
+                  (onClick)="openConflictRetry(row, conflict)"
+                />
+              }
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+  }
+
+  <div class="material-grid">
+    @for (row of filteredRows(); track row.material.id) {
+      <section class="data-panel material-card" [class.has-conflict]="row.openConflicts.length">
+        <div class="data-panel-header material-head">
+          <div>
+            <h3>{{ row.material.attachmentName }}</h3>
+            <p>
+              <span class="mono">{{ row.material.fingerprint }}</span>
+              · revision {{ row.material.revision }}
+            </p>
+          </div>
+          <div class="tag-row">
+            @if (row.reused) {
+              <p-tag [value]="'一稿多用 · ' + row.supplierCount + ' 家供应商'" severity="warn" />
+            }
+            @if (row.pendingResponseIds.length) {
+              <p-tag [value]="row.pendingResponseIds.length + ' 项待确认'" severity="danger" />
+            }
+            @if (row.pendingReReviewCount) {
+              <p-tag [value]="row.pendingReReviewCount + ' 项待重评'" severity="warn" />
+            }
+            @if (row.openConflicts.length) {
+              <app-scope-conflict-tag status="open" />
+            }
+          </div>
+        </div>
+
+        <div class="data-panel-body">
+          <div class="coverage-block">
+            <h4>已确认覆盖范围</h4>
+            @if (row.coveredSupplierNames.length) {
+              <div class="coverage-tags">
+                @for (name of row.coveredSupplierNames; track name) {
+                  <span class="coverage-chip supplier">{{ name }}</span>
+                }
+              </div>
+            } @else {
+              <p class="muted">尚无生效核验单。</p>
+            }
+            @if (row.coveredClauseLabels.length) {
+              <div class="coverage-tags">
+                @for (label of row.coveredClauseLabels; track label) {
+                  <span class="coverage-chip clause">{{ label }}</span>
+                }
+              </div>
+            }
+          </div>
+
+          <p-table [value]="row.usageViews" responsiveLayout="scroll" styleClass="compact-table">
+            <ng-template pTemplate="header">
+              <tr>
+                <th>供应商</th>
+                <th>条款</th>
+                <th>适用范围</th>
+                <th>重评</th>
+                <th style="width: 150px">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-usage>
+              <tr [class.row-pending]="usage.pending">
+                <td>
+                  <strong>{{ usage.response.supplierName }}</strong>
+                  <div class="table-secondary mono">{{ usage.response.id }}</div>
+                </td>
+                <td>
+                  <span class="mono">{{ usage.clause.code }}</span>
+                  <div class="table-secondary">{{ usage.clause.title }}</div>
+                </td>
+                <td>
+                  @if (!usage.pending) {
+                    <app-scope-confirmation-tag status="active" />
+                  } @else {
+                    <app-scope-confirmation-tag status="invalidated" />
+                  }
+                </td>
+                <td>
+                  @if (usage.pendingReReview) {
+                    <span class="rereview-flag">
+                      <i class="pi pi-history"></i> 待重评
+                    </span>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td>
+                  <p-button
+                    [label]="usage.pending ? '确认适用范围' : '重新核验'"
+                    size="small"
+                    [outlined]="usage.pending"
+                    [severity]="usage.pending ? 'danger' : 'secondary'"
+                    [disabled]="!canMaintain()"
+                    (onClick)="openConfirm(row, usage)"
+                  />
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+
+          <div class="material-footer">
+            <small>
+              首次出现 {{ row.material.firstSeenAt | date: "yyyy-MM-dd HH:mm" }}
+              · 最近更新 {{ row.material.updatedAt | date: "yyyy-MM-dd HH:mm" }}
+              · {{ row.material.updatedBy }}
+            </small>
+            <p-button
+              label="更新附件 / 指纹"
+              icon="pi pi-upload"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              [disabled]="!canMaintain()"
+              (onClick)="openUpdate(row)"
+            />
+          </div>
+
+          @if (row.invalidatedConfirmations.length) {
+            <details class="invalidated-list">
+              <summary>
+                {{ row.invalidatedConfirmations.length }} 张已失效核验单（留痕）
+              </summary>
+              <ul>
+                @for (item of row.invalidatedConfirmations; track item.id) {
+                  <li>
+                    <span class="mono">{{ item.ticketId }}</span>
+                    {{ item.confirmedBy }} · {{ item.invalidatedReason }}
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        </div>
+      </section>
+    } @empty {
+      <div class="empty-state">当前筛选条件下没有材料记录。</div>
+    }
+  </div>
+</section>
+
+<p-dialog
+  header="确认证明材料适用范围"
+  [modal]="true"
+  [visible]="confirmVisible()"
+  (visibleChange)="confirmVisible.set($event)"
+  [style]="{ width: 'min(680px, 94vw)' }"
+>
+  @if (activeUsage(); as usage) {
+    <div class="dialog-context">
+      <div>
+        <span>供应商响应</span>
+        <strong>{{ usage.response.supplierName }} · {{ usage.clause.code }}</strong>
+      </div>
+      <div>
+        <span>附件</span>
+        <strong>{{ usage.response.attachmentName }}</strong>
+      </div>
+      <div>
+        <span>指纹</span>
+        <strong class="mono">{{ usage.response.proofFingerprint }}</strong>
+      </div>
+      <div>
+        <span>核验单编号</span>
+        <strong class="mono">{{ activeTicketId() }}</strong>
+      </div>
+    </div>
+
+    @if (activeConflict(); as conflict) {
+      <div class="conflict-notice">
+        <header>
+          <i class="pi pi-exclamation-triangle"></i>
+          <strong>材料已变化：另一个人刚刚确认了同一材料</strong>
+        </header>
+        <p>
+          冲突来源：{{ conflict.conflictingBy }}（{{ activeConflictSupplierName() }}）
+          已确认覆盖 {{ activeConflictClauseLabels().join("、") }}。
+          你填写的内容已保留在核验单 {{ conflict.ticketId }} 上，核对后可沿用原核验单重试。
+        </p>
+      </div>
+    }
+
+    <form [formGroup]="confirmForm" (ngSubmit)="submitConfirm(false)">
+      <div class="field">
+        <label>
+          该材料覆盖哪些技术条款（{{ selectedClauseCount() }} 项已选）
+        </label>
+        <div class="clause-picker">
+          <label class="select-all">
+            <p-checkbox
+              [binary]="true"
+              [ngModel]="false"
+              (ngModelChange)="selectAllClauses($event)"
+              [ngModelOptions]="{ standalone: true }"
+            />
+            <span>全选条款</span>
+          </label>
+          @for (option of allClauseOptions(); track option.id) {
+            <label class="clause-option">
+              <p-checkbox
+                [binary]="true"
+                [ngModel]="clauseChecked(option.id)"
+                (ngModelChange)="toggleClause(option.id, $event)"
+                [ngModelOptions]="{ standalone: true }"
+              />
+              <span>{{ option.label }}</span>
+            </label>
+          }
+        </div>
+      </div>
+      <div class="field">
+        <label for="scope-note">适用范围说明</label>
+        <textarea
+          id="scope-note"
+          pTextarea
+          formControlName="note"
+          rows="4"
+          placeholder="说明该附件可以覆盖哪些供应商响应和条款，以及不适用的边界"
+        ></textarea>
+        @if (confirmForm.controls.note.touched && confirmForm.controls.note.invalid) {
+          <small class="error">适用范围说明至少需要 4 个字符。</small>
+        }
+      </div>
+      <div class="scope-note">
+        确认通过后该响应才进入评审；未确认时评审员无法提交意见。
+        保存失败请直接点“沿用原核验单重试”，系统不会多出记录。
+      </div>
+      <div class="inline-actions dialog-actions">
+        <p-button
+          label="模拟保存失败"
+          icon="pi pi-times-circle"
+          severity="secondary"
+          [outlined]="true"
+          type="button"
+          (onClick)="simulateFailedSave()"
+        />
+        <p-button
+          label="沿用原核验单重试"
+          icon="pi pi-refresh"
+          severity="warn"
+          [outlined]="true"
+          type="button"
+          (onClick)="retryWithSameTicket()"
+        />
+        <span class="spacer"></span>
+        <p-button
+          type="submit"
+          label="确认适用范围并进入评审"
+          icon="pi pi-check"
+          [disabled]="confirmForm.invalid || selectedClauseCount() === 0"
+        />
+      </div>
+    </form>
+  }
+</p-dialog>
+
+<p-dialog
+  header="更新证明材料（附件 / 指纹）"
+  [modal]="true"
+  [visible]="updateVisible()"
+  (visibleChange)="updateVisible.set($event)"
+  [style]="{ width: 'min(560px, 94vw)' }"
+>
+  <form [formGroup]="updateForm" (ngSubmit)="submitUpdate()">
+    <div class="field">
+      <label for="material-attachment">新附件名称（盖章版）</label>
+      <input
+        id="material-attachment"
+        pInputText
+        formControlName="attachmentName"
+        placeholder="例如：架构互操作补充证明（盖章版）.pdf"
+      />
+    </div>
+    <div class="field">
+      <label for="material-fingerprint">新指纹（留空表示仅更新附件）</label>
+      <input
+        id="material-fingerprint"
+        pInputText
+        formControlName="fingerprint"
+        placeholder="例如：PROOF-SEC-CERT-2026-R2"
+      />
+      <small>填写新指纹会建立新材料记录，原记录保留在已盖章版本中。</small>
+    </div>
+    <div class="update-note">
+      更新后：未盖章核验单立即失效、未定稿评审意见转待重评；已定稿版本继续保留原材料快照与意见。
+    </div>
+    <div class="inline-actions dialog-actions">
+      <p-button
+        label="取消"
+        severity="secondary"
+        [outlined]="true"
+        type="button"
+        (onClick)="updateVisible.set(false)"
+      />
+      <p-button
+        type="submit"
+        label="提交更新"
+        icon="pi pi-upload"
+        [disabled]="updateForm.invalid"
+      />
+    </div>
+  </form>
+</p-dialog>

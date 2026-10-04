@@ -11,6 +11,8 @@ export type ReviewRole =
   | "chair";
 export type ClarificationStatus = "open" | "responded" | "overdue";
 export type VersionStatus = "draft" | "finalized";
+export type ScopeConfirmationStatus = "active" | "invalidated";
+export type ScopeConflictStatus = "open" | "resolved";
 
 export interface ReviewerOpinion {
   id: string;
@@ -21,6 +23,9 @@ export interface ReviewerOpinion {
   score: number;
   comment: string;
   createdAt: string;
+  superseded: boolean;
+  sealedByVersion?: string | null;
+  supersedeReason?: string | null;
 }
 
 export interface Clarification {
@@ -51,6 +56,9 @@ export interface SupplierResponse {
   reviewRound: number;
   reviews: ReviewerOpinion[];
   clarifications: Clarification[];
+  scopeConfirmed: boolean;
+  scopeMatches: boolean;
+  pendingReReview: boolean;
 }
 
 export interface Clause {
@@ -72,6 +80,13 @@ export interface ClauseTreeNode extends Clause {
   children: ClauseTreeNode[];
 }
 
+export interface SealedProof {
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  responseIds: string[];
+}
+
 export interface ReviewVersion {
   id: string;
   version: string;
@@ -83,6 +98,7 @@ export interface ReviewVersion {
   clauseCount: number;
   responseCount: number;
   contentHash: string;
+  sealedProofs: SealedProof[];
 }
 
 export interface AuditLog {
@@ -102,11 +118,83 @@ export interface DashboardStats {
   overdueClarifications: number;
   reusedProofs: number;
   activeVersion: string;
+  materialCount: number;
+  pendingScopeConfirmations: number;
+  pendingReReviews: number;
+  openScopeConflicts: number;
 }
 
 export interface Supplier {
   id: string;
   name: string;
+}
+
+export interface MaterialUsage {
+  responseId: string;
+  clauseId: string;
+  supplierId: string;
+  supplierName: string;
+  clauseCode: string;
+  clauseTitle: string;
+  currentFingerprint: string;
+  currentAttachmentName: string;
+}
+
+export interface ProofMaterial {
+  id: string;
+  fingerprint: string;
+  attachmentName: string;
+  revision: number;
+  firstSeenAt: string;
+  updatedAt: string;
+  updatedBy: string;
+  usages: MaterialUsage[];
+}
+
+export interface ScopeConfirmation {
+  id: string;
+  ticketId: string;
+  materialId: string;
+  materialRevision: number;
+  responseId: string;
+  supplierId: string;
+  clauseIds: string[];
+  note: string;
+  confirmedBy: string;
+  confirmedAt: string;
+  status: ScopeConfirmationStatus;
+  invalidatedAt?: string | null;
+  invalidatedReason?: string | null;
+}
+
+export interface ScopeConflict {
+  id: string;
+  materialId: string;
+  supplierId: string;
+  responseId: string;
+  ticketId: string;
+  conflictingBy: string;
+  conflictingAt: string;
+  conflictingSupplierId: string;
+  conflictingClauseIds: string[];
+  attemptedClauseIds: string[];
+  attemptedNote: string;
+  status: ScopeConflictStatus;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+}
+
+export interface MaterialCoverage {
+  material: ProofMaterial;
+  activeConfirmations: ScopeConfirmation[];
+  invalidatedConfirmations: ScopeConfirmation[];
+  openConflicts: ScopeConflict[];
+  coveredSupplierIds: string[];
+  coveredClauseIds: string[];
+  coveredSupplierNames: string[];
+  coveredClauseLabels: string[];
+  pendingResponseIds: string[];
+  pendingReReviewCount: number;
 }
 
 export interface ClauseFilters {
@@ -122,6 +210,10 @@ export interface ReviewState {
   auditLogs: AuditLog[];
   dashboard?: DashboardStats;
   suppliers: Supplier[];
+  materials: ProofMaterial[];
+  scopeConfirmations: ScopeConfirmation[];
+  scopeConflicts: ScopeConflict[];
+  materialCoverages: MaterialCoverage[];
   filters: ClauseFilters;
   role: ReviewRole;
   selectedSupplierIds: string[];
@@ -138,6 +230,10 @@ export interface WorkspaceQueryResult {
     auditLogs: AuditLog[];
     dashboard: DashboardStats;
     suppliers: Supplier[];
+    materials: ProofMaterial[];
+    scopeConfirmations: ScopeConfirmation[];
+    scopeConflicts: ScopeConflict[];
+    materialCoverages: MaterialCoverage[];
   };
 }
 
@@ -169,6 +265,32 @@ export interface FinalizeVersionInput {
   role: ReviewRole;
 }
 
+export interface ConfirmScopeInput {
+  ticketId: string;
+  responseId: string;
+  clauseIds: string[];
+  note: string;
+  actor: string;
+  role: ReviewRole;
+  simulateFailure?: boolean;
+}
+
+export interface UpdateProofMaterialInput {
+  materialId: string;
+  fingerprint?: string;
+  attachmentName: string;
+  actor: string;
+  role: ReviewRole;
+}
+
+export interface ScopeConfirmResult {
+  confirmation: ScopeConfirmation | null;
+  conflict: ScopeConflict | null;
+  materialRevision: number;
+  materialChanged: boolean;
+  reusedTicket: boolean;
+}
+
 export const roleProfiles: Record<ReviewRole, { name: string; label: string }> = {
   procurement: { name: "采购专员", label: "采购人员" },
   reviewer_a: { name: "陈评审", label: "技术评审员 A" },
@@ -194,4 +316,17 @@ export const statusSeverity: Record<ComplianceStatus, string> = {
   deviation: "danger",
   clarification: "warn",
   pending: "secondary",
+};
+
+export const scopeConfirmationLabels: Record<
+  ScopeConfirmationStatus,
+  string
+> = {
+  active: "核验通过",
+  invalidated: "已失效",
+};
+
+export const scopeConflictLabels: Record<ScopeConflictStatus, string> = {
+  open: "待处理",
+  resolved: "已处理",
 };

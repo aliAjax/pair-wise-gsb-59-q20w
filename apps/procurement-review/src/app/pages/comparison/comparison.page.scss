@@ -93,6 +93,38 @@
   box-shadow: inset 0 0 0 1px #efb35a;
 }
 
+:host ::ng-deep .comparison-table td.cell-unscoped {
+  background: #f2f4f5;
+}
+
+.scope-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+
+  &.locked {
+    background: #eceff1;
+    color: #51626a;
+  }
+
+  &.rereview {
+    background: #fff3da;
+    color: #8a4b02;
+  }
+
+  &.conflict {
+    background: #fdeceb;
+    color: #a4261d;
+  }
+}
+
+.risk-item.locked {
+  color: #51626a;
+}
+
 .risk-cell {
   min-width: 155px;
 }

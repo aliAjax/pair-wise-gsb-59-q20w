@@ -38,8 +38,16 @@
       <strong>{{ finalizedCount() }}</strong>
     </article>
     <article>
-      <span>当前导出条数</span>
-      <strong>{{ filteredLogs().length }}</strong>
+      <span>材料覆盖核验单</span>
+      <strong>{{ coverageExportRows().length }}</strong>
+    </article>
+    <article>
+      <span>待重评导出项</span>
+      <strong class="warn">{{ pendingReReviewExportRows().length }}</strong>
+    </article>
+    <article>
+      <span>冲突来源导出项</span>
+      <strong class="danger">{{ conflictExportRows().length }}</strong>
     </article>
     <article class="version-card">
       <span>最近定稿</span>
@@ -47,6 +55,85 @@
       <small>{{ finalVersion()?.label ?? "尚未签字定稿" }}</small>
     </article>
   </div>
+
+  <section class="data-panel export-panel">
+    <div class="data-panel-header">
+      <div>
+        <h3>证明材料核验导出</h3>
+        <p>导出材料覆盖范围、待重评数量和冲突来源，供采购组留档与核对。</p>
+      </div>
+      <div class="inline-actions">
+        <p-button
+          label="覆盖范围 CSV"
+          icon="pi pi-file-export"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="exportScopeCsv()"
+        />
+        <p-button
+          label="待重评 CSV"
+          icon="pi pi-history"
+          severity="warn"
+          [outlined]="true"
+          (onClick)="exportReReviewCsv()"
+        />
+        <p-button
+          label="冲突来源 CSV"
+          icon="pi pi-exclamation-triangle"
+          severity="danger"
+          [outlined]="true"
+          (onClick)="exportConflictCsv()"
+        />
+      </div>
+    </div>
+    <p-table
+      [value]="coverageExportRows()"
+      [paginator]="true"
+      [rows]="6"
+      responsiveLayout="scroll"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>材料 / 核验单</th>
+          <th>覆盖供应商</th>
+          <th>覆盖条款</th>
+          <th>待重评</th>
+          <th>冲突</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr>
+          <td>
+            <span class="table-primary">{{ row.attachmentName }}</span>
+            <div class="table-secondary mono">
+              {{ row.fingerprint }} · rev {{ row.revision }} · {{ row.ticketId }}
+            </div>
+          </td>
+          <td>{{ row.supplierName }}</td>
+          <td>{{ row.clauseIds.replaceAll(";", "、") }}</td>
+          <td>
+            @if (row.pendingReReview) {
+              <p-tag [value]="row.pendingReReview + ' 项'" severity="warn" />
+            } @else {
+              —
+            }
+          </td>
+          <td>
+            @if (row.conflictCount) {
+              <p-tag [value]="row.conflictCount + ' 起'" severity="danger" />
+            } @else {
+              —
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5">尚无生效的适用范围核验单。</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </section>
 
   <section class="data-panel filter-panel">
     <div class="audit-filters">
